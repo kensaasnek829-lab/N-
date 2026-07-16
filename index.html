@@ -1,0 +1,808 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MAXGRAND｜燈光照明方案 Lighting Solutions | Hong Kong</title>
+<meta name="description" content="Maxgrand — 香港領先的照明供應商及方案提供者，成立於1992年。Hong Kong's leading lighting supplier & solution provider since 1992.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Noto+Sans+TC:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#05070d;
+  --bg-2:#090d18;
+  --surface:rgba(255,255,255,.03);
+  --surface-2:rgba(255,255,255,.055);
+  --line:rgba(120,180,255,.14);
+  --line-strong:rgba(120,180,255,.28);
+  --txt:#e8eefb;
+  --txt-dim:#93a0b8;
+  --cyan:#3ee6ff;
+  --blue:#3b82f6;
+  --amber:#ffc24d;
+  --violet:#8b7bff;
+  --glow-cyan:rgba(62,230,255,.35);
+  --glow-amber:rgba(255,194,77,.30);
+  --radius:18px;
+  --font-en:'Space Grotesk',system-ui,sans-serif;
+  --font-zh:'Noto Sans TC','Space Grotesk',system-ui,sans-serif;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  background:var(--bg);
+  color:var(--txt);
+  font-family:var(--font-zh);
+  overflow-x:hidden;
+  line-height:1.65;
+}
+::selection{background:var(--cyan);color:#04121a}
+
+/* ---------- background canvas & aurora ---------- */
+#particles{position:fixed;inset:0;z-index:0;pointer-events:none}
+.aurora{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+.aurora::before,.aurora::after{
+  content:"";position:absolute;width:60vmax;height:60vmax;border-radius:50%;
+  filter:blur(120px);opacity:.16;
+}
+.aurora::before{background:radial-gradient(circle,var(--blue),transparent 60%);top:-20vmax;left:-15vmax;animation:drift1 26s ease-in-out infinite alternate}
+.aurora::after{background:radial-gradient(circle,var(--violet),transparent 60%);bottom:-25vmax;right:-15vmax;animation:drift2 32s ease-in-out infinite alternate}
+@keyframes drift1{to{transform:translate(12vmax,8vmax) scale(1.15)}}
+@keyframes drift2{to{transform:translate(-10vmax,-6vmax) scale(1.1)}}
+
+/* grid overlay */
+.grid-overlay{
+  position:fixed;inset:0;z-index:0;pointer-events:none;
+  background-image:linear-gradient(rgba(120,180,255,.04) 1px,transparent 1px),
+                   linear-gradient(90deg,rgba(120,180,255,.04) 1px,transparent 1px);
+  background-size:64px 64px;
+  mask-image:radial-gradient(ellipse 80% 60% at 50% 0%,#000 30%,transparent 75%);
+}
+
+main,header,footer{position:relative;z-index:1}
+
+/* ---------- nav ---------- */
+nav{
+  position:fixed;top:0;left:0;right:0;z-index:100;
+  backdrop-filter:blur(18px) saturate(1.4);
+  -webkit-backdrop-filter:blur(18px) saturate(1.4);
+  background:rgba(5,7,13,.55);
+  border-bottom:1px solid var(--line);
+  transition:background .3s;
+}
+.nav-inner{max-width:1240px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;padding:0 28px;height:72px}
+.logo{display:flex;align-items:center;gap:12px;text-decoration:none;color:var(--txt)}
+.logo-mark{
+  width:38px;height:38px;border-radius:10px;position:relative;flex-shrink:0;
+  background:linear-gradient(135deg,var(--cyan),var(--blue) 60%,var(--violet));
+  box-shadow:0 0 22px var(--glow-cyan);
+  display:grid;place-items:center;font-family:var(--font-en);font-weight:700;color:#03121c;font-size:19px;
+}
+.logo-text{font-family:var(--font-en);font-weight:700;font-size:19px;letter-spacing:.14em}
+.logo-text span{color:var(--cyan)}
+.nav-links{display:flex;gap:6px;align-items:center;list-style:none}
+.nav-links a{
+  color:var(--txt-dim);text-decoration:none;font-size:14px;font-weight:500;
+  padding:8px 14px;border-radius:10px;transition:.25s;letter-spacing:.02em;
+}
+.nav-links a:hover{color:var(--cyan);background:rgba(62,230,255,.07)}
+.lang-toggle{
+  margin-left:10px;cursor:pointer;border:1px solid var(--line-strong);background:var(--surface);
+  color:var(--txt);font-family:var(--font-en);font-size:13px;font-weight:600;
+  padding:7px 14px;border-radius:999px;transition:.25s;letter-spacing:.05em;
+}
+.lang-toggle:hover{border-color:var(--cyan);color:var(--cyan);box-shadow:0 0 16px rgba(62,230,255,.25)}
+.hamburger{display:none;background:none;border:none;cursor:pointer;padding:8px}
+.hamburger span{display:block;width:24px;height:2px;background:var(--txt);margin:5px 0;border-radius:2px;transition:.3s}
+@media(max-width:960px){
+  .nav-links{
+    position:fixed;top:72px;right:0;flex-direction:column;align-items:stretch;
+    background:rgba(6,9,17,.96);backdrop-filter:blur(24px);
+    width:min(320px,80vw);height:calc(100vh - 72px);padding:24px;gap:4px;
+    border-left:1px solid var(--line);
+    transform:translateX(100%);transition:transform .35s cubic-bezier(.4,0,.2,1);
+  }
+  .nav-links.open{transform:translateX(0)}
+  .nav-links a{padding:14px 16px;font-size:16px}
+  .hamburger{display:block}
+  .hamburger.open span:nth-child(1){transform:translateY(7px) rotate(45deg)}
+  .hamburger.open span:nth-child(2){opacity:0}
+  .hamburger.open span:nth-child(3){transform:translateY(-7px) rotate(-45deg)}
+}
+
+/* ---------- hero ---------- */
+.hero{
+  min-height:100vh;display:flex;flex-direction:column;justify-content:center;align-items:center;
+  text-align:center;padding:140px 24px 80px;position:relative;overflow:hidden;
+}
+.beam{
+  position:absolute;top:-10%;left:50%;transform:translateX(-50%);
+  width:2px;height:55%;pointer-events:none;
+  background:linear-gradient(to bottom,transparent,var(--cyan) 35%,var(--amber) 75%,transparent);
+  filter:blur(1px);opacity:.8;animation:beamPulse 4s ease-in-out infinite;
+}
+.beam::after{
+  content:"";position:absolute;bottom:-40px;left:50%;transform:translateX(-50%);
+  width:420px;height:130px;border-radius:50%;
+  background:radial-gradient(ellipse,var(--glow-amber),transparent 70%);
+  filter:blur(20px);
+}
+@keyframes beamPulse{0%,100%{opacity:.55}50%{opacity:1}}
+.hero-badge{
+  display:inline-flex;align-items:center;gap:10px;
+  border:1px solid var(--line-strong);border-radius:999px;padding:8px 20px;
+  font-size:13px;color:var(--txt-dim);background:var(--surface);
+  backdrop-filter:blur(8px);margin-bottom:34px;letter-spacing:.08em;
+  animation:fadeUp .9s .1s both;
+}
+.hero-badge .dot{width:8px;height:8px;border-radius:50%;background:var(--cyan);box-shadow:0 0 12px var(--cyan);animation:blink 2.2s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.35}}
+h1{
+  font-family:var(--font-en);font-size:clamp(44px,8.5vw,104px);font-weight:700;
+  letter-spacing:.06em;line-height:1.04;margin-bottom:10px;
+  animation:fadeUp .9s .25s both;
+}
+.h1-grad{
+  background:linear-gradient(100deg,#fff 15%,var(--cyan) 45%,var(--amber) 80%);
+  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+  filter:drop-shadow(0 0 34px rgba(62,230,255,.28));
+}
+.hero-zh{
+  font-size:clamp(22px,3.6vw,38px);font-weight:700;letter-spacing:.32em;text-indent:.32em;
+  color:var(--txt);margin-bottom:26px;animation:fadeUp .9s .4s both;
+}
+.hero-sub{
+  max-width:640px;color:var(--txt-dim);font-size:clamp(15px,1.8vw,18px);
+  margin-bottom:44px;animation:fadeUp .9s .55s both;
+}
+.hero-cta{display:flex;gap:18px;flex-wrap:wrap;justify-content:center;animation:fadeUp .9s .7s both}
+.btn{
+  position:relative;display:inline-flex;align-items:center;gap:10px;
+  padding:15px 34px;border-radius:14px;font-size:15px;font-weight:600;
+  text-decoration:none;letter-spacing:.05em;transition:.3s;overflow:hidden;
+}
+.btn-primary{
+  color:#04131d;background:linear-gradient(120deg,var(--cyan),var(--blue));
+  box-shadow:0 0 28px rgba(62,230,255,.35),inset 0 0 0 1px rgba(255,255,255,.25);
+}
+.btn-primary:hover{transform:translateY(-3px);box-shadow:0 8px 40px rgba(62,230,255,.5)}
+.btn-ghost{color:var(--txt);border:1px solid var(--line-strong);background:var(--surface)}
+.btn-ghost:hover{border-color:var(--cyan);color:var(--cyan);transform:translateY(-3px);box-shadow:0 0 24px rgba(62,230,255,.2)}
+.scroll-hint{
+  position:absolute;bottom:34px;left:50%;transform:translateX(-50%);
+  width:26px;height:44px;border:2px solid var(--line-strong);border-radius:14px;
+  animation:fadeUp .9s 1s both;
+}
+.scroll-hint::before{
+  content:"";position:absolute;top:8px;left:50%;transform:translateX(-50%);
+  width:4px;height:9px;border-radius:3px;background:var(--cyan);
+  animation:scrollDot 1.8s ease-in-out infinite;
+}
+@keyframes scrollDot{0%{opacity:1;top:8px}70%{opacity:0;top:24px}100%{opacity:0;top:8px}}
+@keyframes fadeUp{from{opacity:0;transform:translateY(28px)}to{opacity:1;transform:none}}
+
+/* ---------- sections ---------- */
+section{max-width:1240px;margin:0 auto;padding:110px 28px}
+.sec-tag{
+  font-family:var(--font-en);font-size:13px;font-weight:600;letter-spacing:.3em;
+  color:var(--cyan);text-transform:uppercase;display:flex;align-items:center;gap:14px;margin-bottom:18px;
+}
+.sec-tag::before{content:"";width:36px;height:1px;background:linear-gradient(90deg,var(--cyan),transparent)}
+h2{font-size:clamp(30px,4.5vw,48px);font-weight:900;line-height:1.2;margin-bottom:14px;letter-spacing:.02em}
+h2 .en{font-family:var(--font-en);font-weight:700}
+.sec-desc{color:var(--txt-dim);max-width:680px;font-size:16px;margin-bottom:54px}
+
+/* reveal on scroll */
+.reveal{opacity:0;transform:translateY(36px);transition:opacity .8s cubic-bezier(.2,.6,.2,1),transform .8s cubic-bezier(.2,.6,.2,1)}
+.reveal.visible{opacity:1;transform:none}
+
+/* ---------- stats ---------- */
+.stats{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1px;
+  background:var(--line);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;
+}
+.stat{
+  background:var(--bg-2);padding:42px 30px;text-align:center;position:relative;transition:.35s;
+}
+.stat:hover{background:#0c1322}
+.stat::after{
+  content:"";position:absolute;inset:auto 0 0 0;height:2px;
+  background:linear-gradient(90deg,transparent,var(--cyan),transparent);
+  opacity:0;transition:.35s;
+}
+.stat:hover::after{opacity:1}
+.stat-num{
+  font-family:var(--font-en);font-size:52px;font-weight:700;line-height:1;
+  background:linear-gradient(120deg,var(--cyan),var(--amber));
+  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+}
+.stat-num sup{font-size:26px}
+.stat-label{margin-top:12px;color:var(--txt-dim);font-size:14px;letter-spacing:.06em}
+
+/* ---------- about ---------- */
+.about-grid{display:grid;grid-template-columns:1.1fr .9fr;gap:60px;align-items:center}
+@media(max-width:900px){.about-grid{grid-template-columns:1fr}}
+.about-text p{color:var(--txt-dim);margin-bottom:18px;font-size:16px}
+.about-text strong{color:var(--txt)}
+.about-visual{
+  position:relative;aspect-ratio:1/1;max-width:460px;margin:0 auto;width:100%;
+  display:grid;place-items:center;
+}
+.orbit{position:absolute;border:1px dashed var(--line-strong);border-radius:50%}
+.orbit-1{inset:8%;animation:spin 40s linear infinite}
+.orbit-2{inset:22%;animation:spin 28s linear infinite reverse}
+.orbit-3{inset:36%;animation:spin 18s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.orbit .node{
+  position:absolute;top:-7px;left:50%;width:14px;height:14px;border-radius:50%;
+  background:var(--cyan);box-shadow:0 0 16px var(--cyan);
+}
+.orbit-2 .node{background:var(--amber);box-shadow:0 0 16px var(--amber)}
+.orbit-3 .node{background:var(--violet);box-shadow:0 0 16px var(--violet)}
+.core{
+  width:34%;aspect-ratio:1;border-radius:50%;position:relative;z-index:2;
+  background:radial-gradient(circle at 35% 30%,#fff,var(--cyan) 30%,var(--blue) 70%,#0a1a3a);
+  box-shadow:0 0 70px var(--glow-cyan),0 0 160px rgba(59,130,246,.35);
+  animation:corePulse 5s ease-in-out infinite;
+  display:grid;place-items:center;font-family:var(--font-en);font-weight:700;color:#03202e;font-size:clamp(14px,2vw,20px);letter-spacing:.1em;
+}
+@keyframes corePulse{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}
+.iso-badges{display:flex;gap:12px;flex-wrap:wrap;margin-top:28px}
+.iso{
+  border:1px solid var(--line-strong);border-radius:10px;padding:9px 16px;
+  font-family:var(--font-en);font-size:12.5px;font-weight:600;letter-spacing:.06em;
+  color:var(--cyan);background:rgba(62,230,255,.05);
+}
+
+/* ---------- products ---------- */
+.cards-3{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:26px}
+.card{
+  position:relative;border-radius:var(--radius);padding:38px 32px;
+  background:linear-gradient(160deg,var(--surface-2),var(--surface));
+  border:1px solid var(--line);overflow:hidden;transition:.4s;
+}
+.card::before{
+  content:"";position:absolute;inset:0;opacity:0;transition:.4s;pointer-events:none;
+  background:radial-gradient(600px circle at var(--mx,50%) var(--my,0%),rgba(62,230,255,.10),transparent 45%);
+}
+.card:hover{transform:translateY(-8px);border-color:var(--line-strong);box-shadow:0 22px 50px rgba(0,0,0,.45),0 0 34px rgba(62,230,255,.10)}
+.card:hover::before{opacity:1}
+.card-icon{
+  width:58px;height:58px;border-radius:14px;display:grid;place-items:center;margin-bottom:24px;
+  background:linear-gradient(135deg,rgba(62,230,255,.16),rgba(139,123,255,.16));
+  border:1px solid var(--line-strong);font-size:26px;
+}
+.card h3{font-size:21px;margin-bottom:6px;font-weight:700}
+.card .en-sub{font-family:var(--font-en);color:var(--cyan);font-size:13px;letter-spacing:.18em;text-transform:uppercase;margin-bottom:16px}
+.card p{color:var(--txt-dim);font-size:14.5px}
+.card-num{
+  position:absolute;top:26px;right:28px;font-family:var(--font-en);font-size:15px;
+  color:var(--txt-dim);opacity:.5;letter-spacing:.1em;
+}
+
+/* ---------- projects ---------- */
+.proj-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px}
+.proj{
+  position:relative;border:1px solid var(--line);border-radius:14px;
+  padding:26px 22px;background:var(--surface);transition:.35s;overflow:hidden;cursor:default;
+}
+.proj::after{
+  content:"";position:absolute;top:0;left:-100%;width:60%;height:100%;
+  background:linear-gradient(100deg,transparent,rgba(62,230,255,.08),transparent);
+  transition:.6s;
+}
+.proj:hover{border-color:var(--cyan);box-shadow:0 0 26px rgba(62,230,255,.15);transform:translateY(-4px)}
+.proj:hover::after{left:130%}
+.proj-icon{font-size:24px;margin-bottom:12px}
+.proj h4{font-size:16px;font-weight:700;margin-bottom:3px}
+.proj span{font-family:var(--font-en);font-size:12px;color:var(--txt-dim);letter-spacing:.1em;text-transform:uppercase}
+
+/* ---------- brands marquee ---------- */
+.marquee-wrap{
+  border-top:1px solid var(--line);border-bottom:1px solid var(--line);
+  padding:38px 0;overflow:hidden;position:relative;
+  mask-image:linear-gradient(90deg,transparent,#000 12%,#000 88%,transparent);
+}
+.marquee{display:flex;gap:70px;width:max-content;animation:scrollX 34s linear infinite}
+.marquee-wrap:hover .marquee{animation-play-state:paused}
+@keyframes scrollX{to{transform:translateX(-50%)}}
+.brand{
+  font-family:var(--font-en);font-size:24px;font-weight:600;letter-spacing:.14em;
+  color:var(--txt-dim);white-space:nowrap;transition:.3s;text-transform:uppercase;
+}
+.brand:hover{color:var(--cyan);text-shadow:0 0 22px var(--glow-cyan)}
+
+/* ---------- process/tech ---------- */
+.tech-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:26px}
+.tech{
+  border:1px solid var(--line);border-radius:var(--radius);padding:34px 28px;
+  background:var(--surface);position:relative;transition:.35s;
+}
+.tech:hover{border-color:var(--line-strong);background:var(--surface-2)}
+.tech-step{
+  font-family:var(--font-en);font-size:13px;font-weight:600;color:var(--amber);
+  letter-spacing:.24em;margin-bottom:14px;
+}
+.tech h4{font-size:18px;font-weight:700;margin-bottom:10px}
+.tech p{color:var(--txt-dim);font-size:14px}
+
+/* ---------- contact ---------- */
+.contact-grid{display:grid;grid-template-columns:1fr 1fr;gap:40px}
+@media(max-width:860px){.contact-grid{grid-template-columns:1fr}}
+.contact-card{
+  border:1px solid var(--line);border-radius:var(--radius);padding:40px;
+  background:linear-gradient(160deg,var(--surface-2),var(--surface));
+}
+.contact-item{display:flex;gap:18px;margin-bottom:26px;align-items:flex-start}
+.contact-item .ci-icon{
+  width:44px;height:44px;border-radius:12px;flex-shrink:0;display:grid;place-items:center;
+  background:rgba(62,230,255,.08);border:1px solid var(--line-strong);font-size:19px;
+}
+.contact-item h5{font-size:13px;color:var(--cyan);letter-spacing:.14em;text-transform:uppercase;font-family:var(--font-en);margin-bottom:4px}
+.contact-item p,.contact-item a{color:var(--txt);font-size:15px;text-decoration:none}
+.contact-item a:hover{color:var(--cyan)}
+.contact-form label{display:block;font-size:13px;color:var(--txt-dim);margin-bottom:7px;letter-spacing:.05em}
+.contact-form input,.contact-form textarea{
+  width:100%;background:rgba(5,8,15,.6);border:1px solid var(--line);border-radius:12px;
+  padding:13px 16px;color:var(--txt);font-family:inherit;font-size:15px;margin-bottom:20px;
+  transition:.25s;outline:none;
+}
+.contact-form input:focus,.contact-form textarea:focus{border-color:var(--cyan);box-shadow:0 0 0 3px rgba(62,230,255,.12)}
+.contact-form textarea{resize:vertical;min-height:110px}
+.contact-form button{width:100%;justify-content:center;border:none;cursor:pointer;font-family:inherit;font-size:15px}
+
+/* ---------- footer ---------- */
+footer{border-top:1px solid var(--line);background:rgba(4,6,11,.8);margin-top:60px}
+.footer-inner{max-width:1240px;margin:0 auto;padding:56px 28px 30px}
+.footer-top{display:flex;justify-content:space-between;gap:40px;flex-wrap:wrap;margin-bottom:44px}
+.footer-brand p{color:var(--txt-dim);font-size:14px;max-width:340px;margin-top:14px}
+.footer-links{display:flex;gap:70px;flex-wrap:wrap}
+.footer-links h6{font-family:var(--font-en);font-size:12px;letter-spacing:.2em;color:var(--cyan);text-transform:uppercase;margin-bottom:16px}
+.footer-links ul{list-style:none}
+.footer-links li{margin-bottom:10px}
+.footer-links a{color:var(--txt-dim);text-decoration:none;font-size:14px;transition:.25s}
+.footer-links a:hover{color:var(--cyan)}
+.footer-bottom{
+  border-top:1px solid var(--line);padding-top:24px;display:flex;justify-content:space-between;
+  gap:16px;flex-wrap:wrap;color:var(--txt-dim);font-size:13px;
+}
+
+/* progress bar */
+#progress{position:fixed;top:0;left:0;height:2px;z-index:200;width:0;
+  background:linear-gradient(90deg,var(--cyan),var(--amber));
+  box-shadow:0 0 12px var(--glow-cyan);transition:width .1s linear}
+
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+}
+</style>
+</head>
+<body>
+
+<div id="progress"></div>
+<canvas id="particles"></canvas>
+<div class="aurora"></div>
+<div class="grid-overlay"></div>
+
+<nav>
+  <div class="nav-inner">
+    <a class="logo" href="#top">
+      <div class="logo-mark">M</div>
+      <div class="logo-text">MAX<span>GRAND</span></div>
+    </a>
+    <button class="hamburger" id="hamburger" aria-label="Menu">
+      <span></span><span></span><span></span>
+    </button>
+    <ul class="nav-links" id="navLinks">
+      <li><a href="#about" data-zh="關於我們" data-en="About">關於我們</a></li>
+      <li><a href="#products" data-zh="照明產品" data-en="Products">照明產品</a></li>
+      <li><a href="#projects" data-zh="項目工程" data-en="Projects">項目工程</a></li>
+      <li><a href="#brands" data-zh="合作品牌" data-en="Brands">合作品牌</a></li>
+      <li><a href="#solutions" data-zh="一站式方案" data-en="Solutions">一站式方案</a></li>
+      <li><a href="#contact" data-zh="聯絡我們" data-en="Contact">聯絡我們</a></li>
+      <li><button class="lang-toggle" id="langToggle">EN</button></li>
+    </ul>
+  </div>
+</nav>
+
+<header class="hero" id="top">
+  <div class="beam"></div>
+  <div class="hero-badge">
+    <span class="dot"></span>
+    <span data-zh="EST. 1992 · 33+ 年香港照明專家" data-en="EST. 1992 · 33+ Years of Lighting Expertise">EST. 1992 · 33+ 年香港照明專家</span>
+  </div>
+  <h1><span class="h1-grad">MAXGRAND</span></h1>
+  <div class="hero-zh" data-zh="照亮未來的光" data-en="ILLUMINATING THE FUTURE">照亮未來的光</div>
+  <p class="hero-sub"
+     data-zh="香港領先的燈光照明供應商及方案提供者，以尖端光學科技與國際品牌，為香港、中國內地及澳門項目提供全面可靠的照明方案。"
+     data-en="Hong Kong's leading lighting supplier & solution provider — delivering comprehensive, reliable lighting solutions across Hong Kong, Mainland China and Macau with cutting-edge optical technology and world-renowned brands.">
+     香港領先的燈光照明供應商及方案提供者，以尖端光學科技與國際品牌，為香港、中國內地及澳門項目提供全面可靠的照明方案。</p>
+  <div class="hero-cta">
+    <a class="btn btn-primary" href="#products" data-zh="探索產品 →" data-en="Explore Products →">探索產品 →</a>
+    <a class="btn btn-ghost" href="#contact" data-zh="聯絡專家" data-en="Talk to an Expert">聯絡專家</a>
+  </div>
+  <div class="scroll-hint"></div>
+</header>
+
+<main>
+
+<!-- STATS -->
+<section style="padding-top:0">
+  <div class="stats reveal">
+    <div class="stat">
+      <div class="stat-num" data-count="33">0</div>
+      <div class="stat-label" data-zh="年照明經驗" data-en="Years of Experience">年照明經驗</div>
+    </div>
+    <div class="stat">
+      <div class="stat-num" data-count="1000" data-suffix="+">0</div>
+      <div class="stat-label" data-zh="完成項目" data-en="Projects Completed">完成項目</div>
+    </div>
+    <div class="stat">
+      <div class="stat-num" data-count="12" data-suffix="+">0</div>
+      <div class="stat-label" data-zh="國際品牌代理" data-en="Global Brand Partners">國際品牌代理</div>
+    </div>
+    <div class="stat">
+      <div class="stat-num" data-count="3">0</div>
+      <div class="stat-label" data-zh="ISO 國際認證" data-en="ISO Certifications">ISO 國際認證</div>
+    </div>
+  </div>
+</section>
+
+<!-- ABOUT -->
+<section id="about">
+  <div class="about-grid">
+    <div class="about-text reveal">
+      <div class="sec-tag" data-zh="About Maxgrand" data-en="About Maxgrand">About Maxgrand</div>
+      <h2><span data-zh="以光為本，" data-en="Powered by Light, ">以光為本，</span><br><span class="en" data-zh="以科技領航" data-en="Driven by Technology">以科技領航</span></h2>
+      <p data-zh="Maxgrand 成立於 1992 年，是香港領先的照明供應商及方案提供者。憑藉超過三十年的照明經驗，我們為政府機構、學術機構、商業及住宅、酒店、醫院、商場、零售及餐飲連鎖店提供功能性、科技性與美學兼備的燈具。"
+         data-en="Established in 1992, Maxgrand is one of Hong Kong's leading lighting suppliers and solution providers. With over three decades of experience, we deliver functional, technological and aesthetic luminaires for government agencies, academic institutions, commercial and residential developments, hotels, hospitals, shopping arcades, retail and F&B chains.">
+         Maxgrand 成立於 1992 年，是香港領先的照明供應商及方案提供者。憑藉超過三十年的照明經驗，我們為政府機構、學術機構、商業及住宅、酒店、醫院、商場、零售及餐飲連鎖店提供功能性、科技性與美學兼備的燈具。</p>
+      <p data-zh="作為多個國際知名照明品牌的香港代理及獨家進口商，我們的產品系列覆蓋所有設計需求。配合自家實驗室及第三方安全測試，確保每一件產品的安全與品質。"
+         data-en="As Hong Kong distributor and sole importer of globally renowned lighting brands, our product range matches every design need. Our in-house laboratory and third-party safety testing ensure the safety and quality of every product.">
+         作為多個國際知名照明品牌的香港代理及獨家進口商，我們的產品系列覆蓋所有設計需求。配合自家實驗室及第三方安全測試，確保每一件產品的安全與品質。</p>
+      <div class="iso-badges">
+        <span class="iso">ISO 9001:2015</span>
+        <span class="iso">ISO 14001:2015</span>
+        <span class="iso">ISO 45001:2018</span>
+      </div>
+    </div>
+    <div class="about-visual reveal">
+      <div class="orbit orbit-1"><div class="node"></div></div>
+      <div class="orbit orbit-2"><div class="node"></div></div>
+      <div class="orbit orbit-3"><div class="node"></div></div>
+      <div class="core">SINCE<br>1992</div>
+    </div>
+  </div>
+</section>
+
+<!-- PRODUCTS -->
+<section id="products">
+  <div class="sec-tag reveal">Products</div>
+  <h2 class="reveal"><span data-zh="照明產品系列" data-en="Lighting Product Lines">照明產品系列</span></h2>
+  <p class="sec-desc reveal"
+     data-zh="從建築照明到裝飾與園景燈光，我們的產品線結合精準光學、智能控制與雋永設計。"
+     data-en="From architectural to decorative and landscape lighting — precision optics, smart controls and timeless design.">
+     從建築照明到裝飾與園景燈光，我們的產品線結合精準光學、智能控制與雋永設計。</p>
+  <div class="cards-3">
+    <div class="card reveal">
+      <span class="card-num">01</span>
+      <div class="card-icon">🏙️</div>
+      <h3 data-zh="建築照明" data-en="Architectural">建築照明</h3>
+      <div class="en-sub">Architectural</div>
+      <p data-zh="高效能建築燈具，配備精準光學及智能調控系統，適用於外牆、天幕及大型公共空間，塑造城市光影地標。"
+         data-en="High-performance architectural luminaires with precision optics and intelligent dimming — for façades, canopies and large public spaces, shaping iconic cityscapes.">
+         高效能建築燈具，配備精準光學及智能調控系統，適用於外牆、天幕及大型公共空間，塑造城市光影地標。</p>
+    </div>
+    <div class="card reveal">
+      <span class="card-num">02</span>
+      <div class="card-icon">✨</div>
+      <h3 data-zh="裝飾照明" data-en="Decorative">裝飾照明</h3>
+      <div class="en-sub">Decorative</div>
+      <p data-zh="雲集意大利及歐洲設計名家之作，以光影藝術點綴酒店、住宅與高級商業空間，展現非凡品味。"
+         data-en="Curated works from Italian and European design masters — the art of light for hotels, residences and premium commercial spaces.">
+         雲集意大利及歐洲設計名家之作，以光影藝術點綴酒店、住宅與高級商業空間，展現非凡品味。</p>
+    </div>
+    <div class="card reveal">
+      <span class="card-num">03</span>
+      <div class="card-icon">🌿</div>
+      <h3 data-zh="園景照明" data-en="Landscape">園景照明</h3>
+      <div class="en-sub">Landscape</div>
+      <p data-zh="專業戶外及園景燈光方案，IP67 級防護、耐候物料與生態友善光譜，讓自然與科技共生。"
+         data-en="Professional outdoor and landscape solutions — IP67 protection, weather-proof materials and eco-friendly spectra where nature meets technology.">
+         專業戶外及園景燈光方案，IP67 級防護、耐候物料與生態友善光譜，讓自然與科技共生。</p>
+    </div>
+  </div>
+</section>
+
+<!-- PROJECTS -->
+<section id="projects">
+  <div class="sec-tag reveal">Projects</div>
+  <h2 class="reveal"><span data-zh="項目工程領域" data-en="Project Sectors">項目工程領域</span></h2>
+  <p class="sec-desc reveal"
+     data-zh="三十多年來，Maxgrand 照亮香港、中國內地及澳門無數地標項目 — 由 YOHO MIX 大型商場到 CityU 國際中心。"
+     data-en="For over three decades, Maxgrand has illuminated landmark projects across Hong Kong, Mainland China and Macau — from YOHO MIX mega mall to CityU International Centre.">
+     三十多年來，Maxgrand 照亮香港、中國內地及澳門無數地標項目 — 由 YOHO MIX 大型商場到 CityU 國際中心。</p>
+  <div class="proj-grid">
+    <div class="proj reveal"><div class="proj-icon">🏠</div><h4 data-zh="住宅項目" data-en="Residential">住宅項目</h4><span>Residential</span></div>
+    <div class="proj reveal"><div class="proj-icon">🏛️</div><h4 data-zh="政府機構" data-en="Government">政府機構</h4><span>Government</span></div>
+    <div class="proj reveal"><div class="proj-icon">🏢</div><h4 data-zh="商業大廈" data-en="Commercial">商業大廈</h4><span>Commercial</span></div>
+    <div class="proj reveal"><div class="proj-icon">🛍️</div><h4 data-zh="大型商場" data-en="Shopping Arcade">大型商場</h4><span>Shopping Arcade</span></div>
+    <div class="proj reveal"><div class="proj-icon">🎓</div><h4 data-zh="學術機構" data-en="Academic">學術機構</h4><span>Academic</span></div>
+    <div class="proj reveal"><div class="proj-icon">🏨</div><h4 data-zh="酒店" data-en="Hotel">酒店</h4><span>Hotel</span></div>
+    <div class="proj reveal"><div class="proj-icon">🍽️</div><h4 data-zh="零售餐飲" data-en="Retail & Catering">零售餐飲</h4><span>Retail & F&B</span></div>
+    <div class="proj reveal"><div class="proj-icon">🏥</div><h4 data-zh="醫院" data-en="Hospital">醫院</h4><span>Hospital</span></div>
+    <div class="proj reveal"><div class="proj-icon">🌆</div><h4 data-zh="外牆燈光" data-en="Façade">外牆燈光</h4><span>Façade</span></div>
+    <div class="proj reveal"><div class="proj-icon">🌏</div><h4 data-zh="中國內地" data-en="Mainland China">中國內地</h4><span>Mainland China</span></div>
+  </div>
+</section>
+
+<!-- BRANDS -->
+<section id="brands" style="padding-left:0;padding-right:0;max-width:none">
+  <div style="max-width:1240px;margin:0 auto;padding:0 28px">
+    <div class="sec-tag reveal">Brand Partners</div>
+    <h2 class="reveal"><span data-zh="國際品牌．獨家代理" data-en="Global Brands · Sole Distribution">國際品牌．獨家代理</span></h2>
+    <p class="sec-desc reveal"
+       data-zh="Maxgrand 是多個世界知名照明品牌的香港代理及獨家進口商。"
+       data-en="Maxgrand is the Hong Kong distributor and sole importer of world-renowned lighting brands.">
+       Maxgrand 是多個世界知名照明品牌的香港代理及獨家進口商。</p>
+  </div>
+  <div class="marquee-wrap reveal">
+    <div class="marquee">
+      <span class="brand">FLOS</span><span class="brand">ewo</span><span class="brand">Linea Light</span>
+      <span class="brand">Ares</span><span class="brand">Panzeri</span><span class="brand">.hess</span>
+      <span class="brand">Castaldi</span><span class="brand">CoeLux</span><span class="brand">Insta</span>
+      <span class="brand">Hoffmeister</span><span class="brand">Performance in Lighting</span><span class="brand">Unilamp</span>
+      <span class="brand">FLOS</span><span class="brand">ewo</span><span class="brand">Linea Light</span>
+      <span class="brand">Ares</span><span class="brand">Panzeri</span><span class="brand">.hess</span>
+      <span class="brand">Castaldi</span><span class="brand">CoeLux</span><span class="brand">Insta</span>
+      <span class="brand">Hoffmeister</span><span class="brand">Performance in Lighting</span><span class="brand">Unilamp</span>
+    </div>
+  </div>
+</section>
+
+<!-- SOLUTIONS -->
+<section id="solutions">
+  <div class="sec-tag reveal">One-Stop Solution</div>
+  <h2 class="reveal"><span data-zh="一站式照明方案" data-en="One-Stop Lighting Destination">一站式照明方案</span></h2>
+  <p class="sec-desc reveal"
+     data-zh="由燈光設計到安裝支援，四步為你的項目注入光的科技。"
+     data-en="From lighting design to installation support — four steps to power your project with light technology.">
+     由燈光設計到安裝支援，四步為你的項目注入光的科技。</p>
+  <div class="tech-grid">
+    <div class="tech reveal">
+      <div class="tech-step">STEP 01</div>
+      <h4 data-zh="燈光設計顧問" data-en="Lighting Design Consultancy">燈光設計顧問</h4>
+      <p data-zh="專業團隊按項目需求提供燈光規劃、照度模擬及 DIALux 計算。"
+         data-en="Professional lighting planning, illumination simulation and DIALux calculations tailored to your project.">
+         專業團隊按項目需求提供燈光規劃、照度模擬及 DIALux 計算。</p>
+    </div>
+    <div class="tech reveal">
+      <div class="tech-step">STEP 02</div>
+      <h4 data-zh="產品選型配對" data-en="Product Specification">產品選型配對</h4>
+      <p data-zh="從十多個國際品牌中精準配對功能、科技與美學兼備的燈具。"
+         data-en="Precision-matched luminaires from 12+ global brands — functional, technological and aesthetic.">
+         從十多個國際品牌中精準配對功能、科技與美學兼備的燈具。</p>
+    </div>
+    <div class="tech reveal">
+      <div class="tech-step">STEP 03</div>
+      <h4 data-zh="品質安全測試" data-en="Quality & Safety Testing">品質安全測試</h4>
+      <p data-zh="自家實驗室配合第三方安全測試，符合 ISO 9001 / 14001 / 45001 標準。"
+         data-en="In-house laboratory plus third-party safety tests, certified to ISO 9001 / 14001 / 45001.">
+         自家實驗室配合第三方安全測試，符合 ISO 9001 / 14001 / 45001 標準。</p>
+    </div>
+    <div class="tech reveal">
+      <div class="tech-step">STEP 04</div>
+      <h4 data-zh="交付與技術支援" data-en="Delivery & Support">交付與技術支援</h4>
+      <p data-zh="可靠的物流交付、現場技術支援及售後服務，項目全程無憂。"
+         data-en="Reliable logistics, on-site technical support and after-sales service throughout your project.">
+         可靠的物流交付、現場技術支援及售後服務，項目全程無憂。</p>
+    </div>
+  </div>
+</section>
+
+<!-- CONTACT -->
+<section id="contact">
+  <div class="sec-tag reveal">Contact</div>
+  <h2 class="reveal"><span data-zh="聯絡我們" data-en="Get in Touch">聯絡我們</span></h2>
+  <p class="sec-desc reveal"
+     data-zh="無論是項目查詢還是產品資訊，我們的照明專家隨時為你服務。"
+     data-en="Whether it's a project enquiry or product information, our lighting experts are here to help.">
+     無論是項目查詢還是產品資訊，我們的照明專家隨時為你服務。</p>
+  <div class="contact-grid">
+    <div class="contact-card reveal">
+      <div class="contact-item">
+        <div class="ci-icon">📍</div>
+        <div>
+          <h5 data-zh="香港總部" data-en="HK Head Office">香港總部</h5>
+          <p data-zh="香港新界葵涌大連排道48-56號東海工業大廈B座6樓B2室"
+             data-en="Unit B2, 6/F., Block B, Eastern Sea Industrial Building, 48-56 Tai Lin Pai Road, Kwai Chung, N.T., Hong Kong">
+             香港新界葵涌大連排道48-56號東海工業大廈B座6樓B2室</p>
+        </div>
+      </div>
+      <div class="contact-item">
+        <div class="ci-icon">📞</div>
+        <div>
+          <h5 data-zh="電話" data-en="Phone">電話</h5>
+          <p><a href="tel:+85239276363">+852 3927 6363</a></p>
+        </div>
+      </div>
+      <div class="contact-item">
+        <div class="ci-icon">✉️</div>
+        <div>
+          <h5 data-zh="電郵" data-en="Email">電郵</h5>
+          <p><a href="mailto:info@maxgrand.com.hk">info@maxgrand.com.hk</a></p>
+        </div>
+      </div>
+      <div class="contact-item" style="margin-bottom:0">
+        <div class="ci-icon">🕘</div>
+        <div>
+          <h5 data-zh="辦公時間" data-en="Office Hours">辦公時間</h5>
+          <p data-zh="星期一至五 9:00 – 18:00" data-en="Mon – Fri, 9:00 – 18:00">星期一至五 9:00 – 18:00</p>
+        </div>
+      </div>
+    </div>
+    <div class="contact-card reveal">
+      <form class="contact-form" onsubmit="event.preventDefault();this.querySelector('button').textContent=document.documentElement.dataset.lang==='en'?'✓ Sent — we will reply soon':'✓ 已送出 — 我們會盡快回覆';">
+        <label data-zh="姓名" data-en="Name">姓名</label>
+        <input type="text" required placeholder="—">
+        <label data-zh="電郵" data-en="Email">電郵</label>
+        <input type="email" required placeholder="you@example.com">
+        <label data-zh="查詢內容" data-en="Message">查詢內容</label>
+        <textarea required placeholder="—"></textarea>
+        <button class="btn btn-primary" type="submit" data-zh="發送查詢 →" data-en="Send Enquiry →">發送查詢 →</button>
+      </form>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="footer-inner">
+    <div class="footer-top">
+      <div class="footer-brand">
+        <a class="logo" href="#top">
+          <div class="logo-mark">M</div>
+          <div class="logo-text">MAX<span>GRAND</span></div>
+        </a>
+        <p data-zh="香港領先的照明供應商及方案提供者，成立於1992年。照亮香港、中國內地及澳門。"
+           data-en="Hong Kong's leading lighting supplier & solution provider since 1992 — brightening Hong Kong, Mainland China and Macau.">
+           香港領先的照明供應商及方案提供者，成立於1992年。照亮香港、中國內地及澳門。</p>
+      </div>
+      <div class="footer-links">
+        <div>
+          <h6 data-zh="網站導覽" data-en="Sitemap">網站導覽</h6>
+          <ul>
+            <li><a href="#about" data-zh="關於我們" data-en="About">關於我們</a></li>
+            <li><a href="#products" data-zh="照明產品" data-en="Products">照明產品</a></li>
+            <li><a href="#projects" data-zh="項目工程" data-en="Projects">項目工程</a></li>
+            <li><a href="#contact" data-zh="聯絡我們" data-en="Contact">聯絡我們</a></li>
+          </ul>
+        </div>
+        <div>
+          <h6 data-zh="認證" data-en="Certified">認證</h6>
+          <ul>
+            <li><a href="#about">ISO 9001:2015</a></li>
+            <li><a href="#about">ISO 14001:2015</a></li>
+            <li><a href="#about">ISO 45001:2018</a></li>
+          </ul>
+        </div>
+        <div>
+          <h6 data-zh="社交平台" data-en="Social">社交平台</h6>
+          <ul>
+            <li><a href="https://www.facebook.com/Maxgrand.lighting/" target="_blank" rel="noopener">Facebook</a></li>
+            <li><a href="https://www.instagram.com/maxgrand.lighting/" target="_blank" rel="noopener">Instagram</a></li>
+            <li><a href="https://hk.linkedin.com/company/maxgrand" target="_blank" rel="noopener">LinkedIn</a></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span data-zh="© 2026 Maxgrand Limited. 版權所有。" data-en="© 2026 Maxgrand Limited. All rights reserved.">© 2026 Maxgrand Limited. 版權所有。</span>
+      <span style="font-family:var(--font-en);letter-spacing:.1em">LIGHTING · TECHNOLOGY · DESIGN</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+/* ---------- particle field ---------- */
+const canvas=document.getElementById('particles'),ctx=canvas.getContext('2d');
+let W,H,parts=[];
+function resize(){W=canvas.width=innerWidth;H=canvas.height=innerHeight;}
+resize();addEventListener('resize',resize);
+const N=Math.min(90,Math.floor(innerWidth/16));
+for(let i=0;i<N;i++)parts.push({
+  x:Math.random()*innerWidth,y:Math.random()*innerHeight,
+  vx:(Math.random()-.5)*.35,vy:(Math.random()-.5)*.35,
+  r:Math.random()*1.8+.6,
+  hue:Math.random()<.75?190:42
+});
+let mouse={x:-999,y:-999};
+addEventListener('pointermove',e=>{mouse.x=e.clientX;mouse.y=e.clientY;});
+function tick(){
+  ctx.clearRect(0,0,W,H);
+  for(const p of parts){
+    p.x+=p.vx;p.y+=p.vy;
+    if(p.x<0||p.x>W)p.vx*=-1;
+    if(p.y<0||p.y>H)p.vy*=-1;
+    const dm=Math.hypot(p.x-mouse.x,p.y-mouse.y);
+    const glow=dm<160?(1-dm/160)*.55:0;
+    ctx.beginPath();
+    ctx.arc(p.x,p.y,p.r+glow*2,0,7);
+    ctx.fillStyle=p.hue===190?`rgba(62,230,255,${.28+glow})`:`rgba(255,194,77,${.3+glow})`;
+    ctx.fill();
+  }
+  for(let i=0;i<parts.length;i++)for(let j=i+1;j<parts.length;j++){
+    const a=parts[i],b=parts[j],d=Math.hypot(a.x-b.x,a.y-b.y);
+    if(d<120){
+      ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);
+      ctx.strokeStyle=`rgba(100,170,255,${(1-d/120)*.10})`;
+      ctx.lineWidth=1;ctx.stroke();
+    }
+  }
+  requestAnimationFrame(tick);
+}
+if(!matchMedia('(prefers-reduced-motion: reduce)').matches)tick();
+
+/* ---------- scroll reveal ---------- */
+const io=new IntersectionObserver(es=>es.forEach(e=>{
+  if(e.isIntersecting){e.target.classList.add('visible');io.unobserve(e.target);}
+}),{threshold:.12});
+document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
+
+/* ---------- counters ---------- */
+const cio=new IntersectionObserver(es=>es.forEach(e=>{
+  if(!e.isIntersecting)return;
+  const el=e.target,end=+el.dataset.count,suf=el.dataset.suffix||'';
+  const t0=performance.now(),dur=1800;
+  (function step(t){
+    const k=Math.min(1,(t-t0)/dur),ease=1-Math.pow(1-k,3);
+    el.textContent=Math.round(end*ease)+suf;
+    if(k<1)requestAnimationFrame(step);
+  })(t0);
+  cio.unobserve(el);
+}),{threshold:.6});
+document.querySelectorAll('.stat-num').forEach(el=>cio.observe(el));
+
+/* ---------- card spotlight ---------- */
+document.querySelectorAll('.card').forEach(c=>{
+  c.addEventListener('pointermove',e=>{
+    const r=c.getBoundingClientRect();
+    c.style.setProperty('--mx',(e.clientX-r.left)+'px');
+    c.style.setProperty('--my',(e.clientY-r.top)+'px');
+  });
+});
+
+/* ---------- progress bar ---------- */
+addEventListener('scroll',()=>{
+  const h=document.documentElement;
+  document.getElementById('progress').style.width=
+    (h.scrollTop/(h.scrollHeight-h.clientHeight)*100)+'%';
+},{passive:true});
+
+/* ---------- mobile menu ---------- */
+const ham=document.getElementById('hamburger'),links=document.getElementById('navLinks');
+ham.addEventListener('click',()=>{ham.classList.toggle('open');links.classList.toggle('open');});
+links.querySelectorAll('a').forEach(a=>a.addEventListener('click',()=>{
+  ham.classList.remove('open');links.classList.remove('open');
+}));
+
+/* ---------- language toggle ---------- */
+const toggle=document.getElementById('langToggle');
+document.documentElement.dataset.lang='zh';
+toggle.addEventListener('click',()=>{
+  const next=document.documentElement.dataset.lang==='zh'?'en':'zh';
+  document.documentElement.dataset.lang=next;
+  document.documentElement.lang=next==='zh'?'zh-Hant':'en';
+  toggle.textContent=next==='zh'?'EN':'中';
+  document.querySelectorAll('[data-zh]').forEach(el=>{
+    el.textContent=el.dataset[next];
+  });
+  document.title=next==='zh'
+    ?'MAXGRAND｜燈光照明方案 Lighting Solutions | Hong Kong'
+    :'MAXGRAND | Lighting Fixtures & Solutions | Hong Kong';
+});
+</script>
+</body>
+</html>
