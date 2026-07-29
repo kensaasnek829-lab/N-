@@ -1,0 +1,277 @@
+#!/usr/bin/env node
+/**
+ * audit.mjs — check a scroll page against the things that actually break.
+ *
+ *   node audit.mjs path/to/index.html
+ *
+ * Static checks need nothing but Node. If Playwright happens to be installed
+ * it also drives a real browser and runs the checks that only mean something
+ * at runtime — chiefly "is the page a pure function of scroll position",
+ * which is the property that makes reload-mid-scene and scroll-up work and
+ * which no amount of source reading can confirm.
+ *
+ * Exit code is 1 if any ERROR fired; warnings alone don't fail the run.
+ */
+
+import { readFileSync, existsSync } from 'fs';
+import { dirname, resolve, isAbsolute } from 'path';
+import { pathToFileURL } from 'url';
+
+const target = process.argv[2];
+if (!target || !existsSync(target)) {
+  console.error('usage: node audit.mjs <path-to-html>');
+  process.exit(2);
+}
+
+const file = isAbsolute(target) ? target : resolve(process.cwd(), target);
+const html = readFileSync(file, 'utf8');
+
+const findings = [];
+const add = (level, check, detail) => findings.push({ level, check, detail });
+const ERROR = 'ERROR', WARN = 'WARN', OK = 'OK';
+
+/* Inline <style> and <script> plus anything they link to locally, so the
+   checks see the whole page rather than just its markup. */
+function collect(re) {
+  return [...html.matchAll(re)].map(m => m[1]).join('\n');
+}
+let css = collect(/<style[^>]*>([\s\S]*?)<\/style>/gi);
+let js = collect(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi);
+
+for (const [, href] of html.matchAll(/<link[^>]+href=["']([^"']+\.css)["']/gi)) {
+  const p = resolve(dirname(file), href);
+  if (existsSync(p)) css += '\n' + readFileSync(p, 'utf8');
+}
+for (const [, src] of html.matchAll(/<script[^>]+src=["']([^"']+\.js)["']/gi)) {
+  const p = resolve(dirname(file), src);
+  if (existsSync(p)) js += '\n' + readFileSync(p, 'utf8');
+  else if (!/^https?:/.test(src)) add(ERROR, 'assets', `missing local script: ${src}`);
+}
+
+const stripComments = s => s.replace(/\/\*[\s\S]*?\*\//g, '');
+const cssClean = stripComments(css);
+
+/* ---------------- static checks ---------------- */
+
+// Full-screen stages measured in vh drift as mobile browser chrome moves.
+{
+  const vh = [...cssClean.matchAll(/(?:^|[^a-z-])(?:min-height|height)\s*:\s*100vh/gi)];
+  if (vh.length) add(WARN, 'viewport-units',
+    `${vh.length}× "100vh" — use 100svh for full-screen stages so mobile chrome doesn't shift them`);
+  else add(OK, 'viewport-units', 'no bare 100vh stages');
+}
+
+// Reduced motion must produce a readable page, not a frozen one.
+{
+  if (!/prefers-reduced-motion/i.test(cssClean + js)) {
+    add(ERROR, 'reduced-motion', 'no prefers-reduced-motion handling at all');
+  } else {
+    const block = cssClean.slice(cssClean.search(/prefers-reduced-motion/i));
+    const releases = /position\s*:\s*static/i.test(block) || /height\s*:\s*auto/i.test(block);
+    if (/position\s*:\s*sticky/i.test(cssClean) && !releases) {
+      add(WARN, 'reduced-motion',
+        'page pins but reduced-motion block never releases sticky/tall tracks — content may freeze blank');
+    } else {
+      add(OK, 'reduced-motion', 'handled, and pinning is released');
+    }
+  }
+}
+
+// Hijacking the wheel breaks trackpads, keyboards, find-in-page and AT.
+{
+  const hijack = /addEventListener\s*\(\s*["'](?:wheel|mousewheel|touchmove)["'][\s\S]{0,240}?preventDefault/gi;
+  if (hijack.test(js)) add(ERROR, 'scroll-hijack', 'preventDefault on wheel/touchmove — never take over scrolling');
+  else add(OK, 'scroll-hijack', 'native scrolling left intact');
+}
+
+// Per-frame writes to layout properties relayout the whole page.
+{
+  const bad = /\.style\.(top|left|right|bottom|width|height|margin\w*|padding\w*)\s*=/g;
+  const hits = [...js.matchAll(bad)].map(m => m[1]);
+  if (hits.length) add(WARN, 'composited-props',
+    `writes layout properties from JS (${[...new Set(hits)].join(', ')}) — prefer transform/opacity`);
+  else add(OK, 'composited-props', 'no per-frame layout-property writes');
+}
+
+// Accumulating state is what breaks reload-mid-scene and scrolling upward.
+{
+  const scrollHandler = /addEventListener\s*\(\s*["']scroll["']([\s\S]{0,600})/gi;
+  let flagged = false;
+  for (const m of js.matchAll(scrollHandler)) {
+    if (/classList\.(add|remove|toggle)/.test(m[1])) flagged = true;
+  }
+  if (flagged) add(WARN, 'purity',
+    'classList mutation inside a scroll handler — usually means state accumulates; derive it from progress instead');
+  else add(OK, 'purity', 'no obvious state accumulation in scroll handlers');
+}
+
+// will-change is a budget, not a decoration.
+{
+  const n = (cssClean.match(/will-change/gi) || []).length;
+  if (n > 8) add(WARN, 'will-change', `${n} will-change declarations — over-promotion exhausts GPU memory`);
+  else add(OK, 'will-change', `${n} will-change declarations`);
+}
+
+// Images without intrinsic size reflow on load and shift every scene below.
+{
+  const imgs = [...html.matchAll(/<img\b[^>]*>/gi)].map(m => m[0]);
+  const bare = imgs.filter(t =>
+    !/\b(width|height)\s*=/.test(t) && !/aspect-ratio/.test(t));
+  if (bare.length) add(WARN, 'layout-shift',
+    `${bare.length}/${imgs.length} <img> without width/height — late reflow shifts scene ranges`);
+  else add(OK, 'layout-shift', `${imgs.length} images sized`);
+}
+
+// Content that only exists after JS is invisible to a real set of readers.
+{
+  const hidden = (cssClean.match(/opacity\s*:\s*0\b/g) || []).length;
+  if (hidden > 0 && !/<noscript/i.test(html)) {
+    add(WARN, 'no-js', `${hidden} rules start at opacity:0 with no <noscript> fallback — content vanishes if JS fails`);
+  } else add(OK, 'no-js', 'no-JS path considered');
+}
+
+// Sticky needs an inset; the ancestor-chain half is checked at runtime, where
+// it can be answered precisely instead of guessed at from source.
+{
+  if (/position\s*:\s*sticky/i.test(cssClean)) {
+    const insets = /position\s*:\s*sticky[\s\S]{0,200}?(top|bottom)\s*:/i.test(cssClean) ||
+                   /(top|bottom)\s*:[\s\S]{0,200}?position\s*:\s*sticky/i.test(cssClean);
+    if (!insets) add(ERROR, 'sticky-inset', 'position:sticky with no top/bottom inset — it will never stick');
+    else add(OK, 'sticky-inset', 'sticky rules declare an inset');
+  }
+}
+
+/* ---------------- runtime checks (optional) ---------------- */
+
+async function runtime() {
+  /* Resolve Playwright from the audited project as well as from next to this
+     script — a bundled skill script rarely sits inside the node_modules tree
+     of the page it is checking. */
+  let chromium;
+  for (const spec of ['playwright',
+                      pathToFileURL(resolve(process.cwd(), 'node_modules/playwright/index.js')).href,
+                      pathToFileURL(resolve(dirname(file), 'node_modules/playwright/index.js')).href]) {
+    try {
+      const mod = await import(spec);
+      /* Playwright is CommonJS, so depending on how it was resolved the
+         browsers hang off the namespace or off .default. */
+      chromium = mod.chromium || (mod.default && mod.default.chromium);
+      if (chromium) break;
+    } catch { /* try the next location */ }
+  }
+  if (!chromium) return null;
+
+  const launch = {};
+  for (const p of ['/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
+                   '/usr/bin/chromium', '/usr/bin/google-chrome']) {
+    if (existsSync(p)) { launch.executablePath = p; break; }
+  }
+  launch.args = ['--no-sandbox'];
+
+  let browser;
+  try { browser = await chromium.launch(launch); }
+  catch { return null; }
+
+  const url = pathToFileURL(file).href;
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const page = await ctx.newPage();
+  const errors = [];
+  page.on('pageerror', e => errors.push(String(e).slice(0, 160)));
+  await page.goto(url, { waitUntil: 'load' });
+  await page.waitForTimeout(250);
+
+  if (errors.length) add(ERROR, 'runtime-errors', errors.join(' | '));
+  else add(OK, 'runtime-errors', 'no uncaught errors');
+
+  /* Does anything actually stick? An intermediate ancestor with non-visible
+     overflow silently turns every pin into a normal scrolling block. html and
+     body are exempt: their overflow propagates to the viewport. */
+  const stickyReport = await page.evaluate(() => {
+    const out = [];
+    for (const el of document.querySelectorAll('*')) {
+      if (getComputedStyle(el).position !== 'sticky') continue;
+      let n = el.parentElement;
+      while (n && n !== document.body && n !== document.documentElement) {
+        const s = getComputedStyle(n);
+        if (s.overflowX !== 'visible' || s.overflowY !== 'visible') {
+          out.push(`${el.className || el.tagName} blocked by <${n.tagName.toLowerCase()}${
+            n.className ? '.' + String(n.className).split(' ')[0] : ''}> overflow:${s.overflowX}/${s.overflowY}`);
+          break;
+        }
+        n = n.parentElement;
+      }
+    }
+    return out;
+  });
+  if (stickyReport.length) add(ERROR, 'sticky-ancestors', stickyReport.join(' | '));
+  else add(OK, 'sticky-ancestors', 'no overflow ancestor blocks sticky');
+
+  const height = await page.evaluate(() => document.documentElement.scrollHeight);
+  const vp = 800;
+
+  /* Purity: the picture at a given offset must not depend on how you got
+     there. Sample scrolling down, then again scrolling up, and compare. */
+  const sample = async y => {
+    await page.evaluate(v => window.scrollTo(0, v), y);
+    await page.waitForTimeout(90);
+    return page.evaluate(() => {
+      const out = [];
+      for (const el of document.querySelectorAll('body *')) {
+        const s = getComputedStyle(el);
+        if (s.transform !== 'none' || parseFloat(s.opacity) < 1)
+          out.push(s.transform + '|' + s.opacity);
+      }
+      return out.join(';');
+    });
+  };
+
+  const stops = [0.25, 0.5, 0.75].map(f => Math.round((height - vp) * f));
+  const down = [];
+  for (const y of stops) down.push(await sample(y));
+  await page.evaluate(v => window.scrollTo(0, v), height);
+  await page.waitForTimeout(120);
+  const up = [];
+  for (const y of [...stops].reverse()) up.unshift(await sample(y));
+
+  const mismatch = stops.filter((_, i) => down[i] !== up[i]).length;
+  if (mismatch) add(ERROR, 'purity-runtime',
+    `${mismatch}/${stops.length} scroll positions render differently going up vs down — state is accumulating`);
+  else add(OK, 'purity-runtime', 'identical rendering scrolling up and down');
+
+  /* Reduced motion must leave prose readable rather than at opacity 0. */
+  const rctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, reducedMotion: 'reduce' });
+  const rpage = await rctx.newPage();
+  await rpage.goto(url, { waitUntil: 'load' });
+  await rpage.waitForTimeout(250);
+  const invisible = await rpage.evaluate(() => {
+    let n = 0;
+    for (const el of document.querySelectorAll('p,h1,h2,h3,li')) {
+      const s = getComputedStyle(el);
+      if (parseFloat(s.opacity) < 0.1 && el.textContent.trim()) n++;
+    }
+    return n;
+  });
+  if (invisible) add(ERROR, 'reduced-motion-runtime',
+    `${invisible} text elements invisible under prefers-reduced-motion`);
+  else add(OK, 'reduced-motion-runtime', 'all prose readable under reduced motion');
+
+  await browser.close();
+  return true;
+}
+
+const ran = await runtime();
+
+/* ---------------- report ---------------- */
+
+const icon = { OK: ' ok ', WARN: 'warn', ERROR: 'FAIL' };
+const order = { ERROR: 0, WARN: 1, OK: 2 };
+findings.sort((a, b) => order[a.level] - order[b.level]);
+
+console.log(`\nscroll-world audit — ${file}\n`);
+for (const f of findings) console.log(`  [${icon[f.level]}] ${f.check.padEnd(22)} ${f.detail}`);
+if (ran === null) console.log('\n  (runtime checks skipped — Playwright not available)');
+
+const errs = findings.filter(f => f.level === ERROR).length;
+const warns = findings.filter(f => f.level === WARN).length;
+console.log(`\n${errs} error(s), ${warns} warning(s)\n`);
+process.exit(errs ? 1 : 0);

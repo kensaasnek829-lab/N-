@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scroll World — starter</title>
+<style>
+/* ------------------------------------------------------------------
+   The shape of a scroll world:
+     .track  is tall and does the scrolling
+     .stage  sticks inside it and does the showing
+   Everything else is a transform driven by --p, which the engine writes.
+   ------------------------------------------------------------------ */
+:root{
+  --ink:#e9eef7;
+  --dim:#8b97ad;
+  --bg:#070a11;
+  --accent:#5bd9ff;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{
+  background:var(--bg);
+  color:var(--ink);
+  font:400 16px/1.65 system-ui,-apple-system,"Segoe UI",sans-serif;
+  overflow-x:hidden;
+}
+h1,h2{line-height:1.1;letter-spacing:-.02em;font-weight:600}
+h1{font-size:clamp(2.5rem,8vw,6rem)}
+h2{font-size:clamp(1.8rem,4vw,3.2rem)}
+p.lede{color:var(--dim);font-size:clamp(1rem,1.6vw,1.25rem);max-width:46ch}
+
+.track{position:relative}
+.stage{
+  position:sticky;top:0;
+  height:100svh;              /* svh, not vh — see note at the bottom */
+  display:grid;place-items:center;
+  overflow:hidden;
+}
+.wrap{width:min(1100px,90vw);margin-inline:auto}
+
+/* ---------- scene 1: a title that recedes as you leave it ---------- */
+#intro{height:200vh}
+#intro .layer{
+  text-align:center;
+  /* --p is 0 at the top of the track and 1 when it has scrolled past.
+     Reading the maths in CSS keeps the "look" tunable without touching JS. */
+  transform:translateY(calc(var(--p,0) * -12vh)) scale(calc(1 - var(--p,0) * .12));
+  opacity:calc(1 - var(--p,0) * 1.4);
+  will-change:transform,opacity;
+}
+.scroll-hint{
+  margin-top:2.5rem;color:var(--dim);font-size:.8rem;letter-spacing:.25em;
+  text-transform:uppercase;
+}
+
+/* ---------- scene 2: depth, built from three speeds ---------- */
+#depth{height:300vh}
+#depth .stage{background:radial-gradient(ellipse at 50% 120%,#10203a,transparent 65%)}
+.plane{position:absolute;inset:0;display:grid;place-items:center;will-change:transform}
+/* Far things move least. That single rule is all parallax really is. */
+.plane[data-depth="far"]  {transform:translateY(calc(var(--p,0) * -6vh))}
+.plane[data-depth="mid"]  {transform:translateY(calc(var(--p,0) * -22vh))}
+.plane[data-depth="near"] {transform:translateY(calc(var(--p,0) * -48vh))}
+.orb{
+  width:44vmin;height:44vmin;border-radius:50%;
+  background:radial-gradient(circle at 35% 30%,var(--accent),#1b4d8f 55%,transparent 72%);
+  filter:blur(2px);opacity:.5;
+}
+.plane[data-depth="near"] .orb{width:14vmin;height:14vmin;opacity:.9;filter:none}
+.plane[data-depth="mid"] .orb{width:26vmin;height:26vmin;opacity:.7}
+
+/* ---------- scene 3: chapters that hand off inside one pin ---------- */
+#story{height:400vh}
+.chapter{
+  position:absolute;width:min(680px,86vw);
+  /* Each chapter owns a slice of the pin's progress. The engine writes a
+     separate custom property per chapter so they can overlap and cross-fade. */
+  opacity:var(--c,0);
+  transform:translateY(calc((1 - var(--c,0)) * 3rem));
+  will-change:transform,opacity;
+}
+.readout{
+  position:absolute;bottom:6vh;left:50%;transform:translateX(-50%);
+  font-variant-numeric:tabular-nums;color:var(--dim);font-size:.8rem;
+  letter-spacing:.2em;
+}
+.bar{
+  position:fixed;top:0;left:0;height:2px;background:var(--accent);
+  width:calc(var(--read,0) * 100%);z-index:99;
+}
+
+footer{padding:20vh 0;text-align:center;color:var(--dim)}
+
+/* ------------------------------------------------------------------
+   Reduced motion is a different page, not the same page holding still.
+   Release the pins, collapse the tall tracks, and let it read as a
+   normal document — everything stays legible and nothing lurches.
+   ------------------------------------------------------------------ */
+@media (prefers-reduced-motion: reduce){
+  html[data-motion="reduce"] .track{height:auto!important}
+  html[data-motion="reduce"] .stage{position:static;height:auto;padding:12vh 0}
+  html[data-motion="reduce"] .plane{position:static;transform:none!important}
+  html[data-motion="reduce"] .chapter{
+    position:static;opacity:1!important;transform:none!important;margin:0 auto 8vh;
+  }
+  html[data-motion="reduce"] #intro .layer{transform:none!important;opacity:1!important}
+  html[data-motion="reduce"] .readout{display:none}
+  *{animation-duration:.001ms!important;transition-duration:.001ms!important}
+}
+</style>
+</head>
+<body>
+
+<div class="bar" aria-hidden="true"></div>
+
+<!-- Scene 1 ------------------------------------------------------ -->
+<section class="track" id="intro">
+  <div class="stage">
+    <div class="layer wrap">
+      <h1>A world you<br>scroll through</h1>
+      <p class="lede" style="margin:1.5rem auto 0">Three scenes, one engine, no dependencies.</p>
+      <div class="scroll-hint">scroll</div>
+    </div>
+  </div>
+</section>
+
+<!-- Scene 2 ------------------------------------------------------ -->
+<section class="track" id="depth">
+  <div class="stage">
+    <div class="plane" data-depth="far"><div class="orb"></div></div>
+    <div class="plane" data-depth="mid"><div class="orb"></div></div>
+    <div class="plane" data-depth="near"><div class="orb"></div></div>
+    <div class="wrap" style="position:relative;text-align:center">
+      <h2>Depth is just<br>three speeds</h2>
+    </div>
+  </div>
+</section>
+
+<!-- Scene 3 ------------------------------------------------------ -->
+<section class="track" id="story">
+  <div class="stage">
+    <article class="chapter" data-chapter="0">
+      <h2>Storyboard first</h2>
+      <p class="lede">Decide the beats before writing a single transform. A scroll world without a beat sheet is just noise that moves.</p>
+    </article>
+    <article class="chapter" data-chapter="1">
+      <h2>Content first</h2>
+      <p class="lede">Every word here exists in the HTML at load. Motion reveals it; motion never supplies it.</p>
+    </article>
+    <article class="chapter" data-chapter="2">
+      <h2>Then motion</h2>
+      <p class="lede">Transform and opacity only. Those two are the ones the compositor can animate without redoing layout.</p>
+    </article>
+    <div class="readout" aria-hidden="true">progress <span id="pct">0</span>%</div>
+  </div>
+</section>
+
+<footer><p>End of the world. Scroll back up.</p></footer>
+
+<script src="scroll-world.js"></script>
+<script>
+(function () {
+  var world = ScrollWorld();
+
+  /* Scene 1 — pinned rather than scene(), and the reason matters: the
+     default range assumes an element rises into view from below, so anything
+     already on screen at load starts partway through it. A hero would render
+     pre-faded. Pinning anchors progress 0 to "page top", which is what the
+     first thing on the page should mean. */
+  world.pin('#intro');
+
+  /* Scene 2 — pinned, so progress maps to the sticky travel exactly. */
+  world.pin('#depth');
+
+  /* Scene 3 — one pin, three chapters. Each gets its own property, so the
+     cross-fades are expressed in CSS and the JS only does arithmetic. */
+  var story = document.querySelector('#story');
+  var chapters = [].slice.call(story.querySelectorAll('.chapter'));
+  var pct = document.getElementById('pct');
+  var slice = 1 / chapters.length;
+
+  /* Fade windows straddle each boundary so the outgoing chapter is still
+     leaving while the next is arriving. Fading one out over the end of its
+     own slice and the next in over the start of the following slice looks
+     equivalent but isn't — those windows sit end to end rather than
+     overlapping, and the screen goes blank in between, once per chapter. */
+  var CROSS = 0.18;   // share of a slice spent cross-fading
+
+  world.pin('#story', function (p) {
+    var last = chapters.length - 1;
+    for (var i = 0; i < chapters.length; i++) {
+      var w = slice * CROSS, start = i * slice, end = (i + 1) * slice;
+      /* The outer two hold their ground: nothing precedes the first chapter
+         and nothing follows the last, so they shouldn't fade against empty. */
+      var fadeIn = i === 0 ? 1 : ScrollWorld.range(p, start - w, start + w);
+      var fadeOut = i === last ? 0 : ScrollWorld.range(p, end - w, end + w);
+      chapters[i].style.setProperty('--c', Math.min(fadeIn, 1 - fadeOut).toFixed(3));
+    }
+    pct.textContent = Math.round(p * 100);
+  });
+
+  /* A reading-progress bar. Marked essential so it keeps working under
+     reduced motion — it reports position, which is information, not decoration. */
+  world.scene(document.documentElement, {
+    out: document.querySelector('.bar'),
+    prop: '--read',
+    start: 'top top',
+    end: 'bottom bottom',
+    essential: true
+  });
+}());
+</script>
+
+<!-- Note on 100svh: mobile browsers grow and shrink the viewport as their
+     chrome hides, and 100vh ignores that, so a "full screen" stage ends up
+     taller than the screen and everything drifts. svh is the stable one. -->
+</body>
+</html>

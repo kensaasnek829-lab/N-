@@ -1,0 +1,50 @@
+{
+  "skill_name": "scroll-world",
+  "evals": [
+    {
+      "id": 0,
+      "name": "pinned-narrative",
+      "prompt": "Build me a single-page site for a small-batch coffee roaster called Ridgeline. I want it to feel cinematic — as you scroll, the story of the bean should unfold: origin, harvest, roast, cup. Something that stays put while the story changes over it would be great. Zero dependencies please, one HTML file plus whatever assets it needs.",
+      "expected_output": "A standalone page with a pinned/sticky section whose chapters cross-fade across scroll progress, content present in the HTML at load, a real reduced-motion layout that releases the pins, and no scroll hijacking.",
+      "files": [],
+      "assertions": [
+        {
+          "text": "Page loads with no uncaught JavaScript errors",
+          "check": "audit: runtime-errors"
+        },
+        {
+          "text": "Renders identically at the same scroll offset going down and coming back up (state is derived from progress, not accumulated)",
+          "check": "audit: purity-runtime"
+        },
+        {
+          "text": "Something actually sticks — no intermediate overflow ancestor silently disables the pin",
+          "check": "audit: sticky-ancestors"
+        },
+        {
+          "text": "All prose remains readable under prefers-reduced-motion rather than frozen at opacity 0",
+          "check": "audit: reduced-motion-runtime"
+        },
+        {
+          "text": "Reduced-motion handling releases pinning and tall tracks instead of merely zeroing animation duration",
+          "check": "audit: reduced-motion"
+        },
+        {
+          "text": "Does not call preventDefault on wheel/touchmove (no scroll hijacking)",
+          "check": "audit: scroll-hijack"
+        },
+        {
+          "text": "Full-screen stages use svh rather than bare 100vh",
+          "check": "audit: viewport-units"
+        },
+        {
+          "text": "Does not write layout properties (top/left/width/height) per frame",
+          "check": "audit: composited-props"
+        },
+        {
+          "text": "The four narrative beats (origin, harvest, roast, cup) are all present as text in the HTML source at load",
+          "check": "grep the four beat names in the served HTML"
+        }
+      ]
+    }
+  ]
+}
