@@ -225,11 +225,28 @@ node scripts/audit.mjs path/to/index.html
 ```
 
 Static checks need only Node. If Playwright is installed it also drives a real
-browser and answers the questions that source reading can't — whether anything
+browser and answers the questions source reading can't — whether anything
 actually sticks, whether the page renders identically scrolling up and down
-(the purity property), and whether prose stays readable under reduced motion.
-Run it before calling a scroll page done; it catches the boring failures fast
-so review time goes to the storyboard instead.
+(the purity property), whether beats land on top of each other, and whether
+prose stays readable under reduced motion.
+
+**Get the runtime checks running rather than accepting the static subset.**
+They degrade quietly to "Playwright not available", and that message is easy to
+read as "no browser here" when there usually is one — sandboxes and CI images
+very often ship a Chromium already:
+
+```sh
+ls /opt/pw-browsers /root/.cache/ms-playwright 2>/dev/null   # prebuilt browsers
+which chromium google-chrome chromium-browser
+CHROMIUM_PATH=/path/to/chrome node scripts/audit.mjs page.html
+```
+
+This matters more than it sounds. A pinned layout's beats are absolutely
+positioned on top of one another, so a wrong offset in one of them puts text on
+text — a defect that is invisible in the source, passes every static check, and
+is glaring the moment anything renders it. Assume you can't see your own page
+until you've actually looked at it, whether that's this script or a screenshot.
+Then look at it anyway: no script judges whether the storyboard reads.
 
 ## Going further
 

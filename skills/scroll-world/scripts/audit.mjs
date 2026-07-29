@@ -161,12 +161,32 @@ async function runtime() {
   }
   if (!chromium) return null;
 
-  const launch = {};
-  for (const p of ['/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
-                   '/usr/bin/chromium', '/usr/bin/google-chrome']) {
-    if (existsSync(p)) { launch.executablePath = p; break; }
+  /* Playwright's own download is often unavailable (offline, or a proxy that
+     blocks it) while a perfectly good Chromium is already on disk. Prefer an
+     explicit CHROMIUM_PATH, then the usual prebuilt locations, then let
+     Playwright find its own. */
+  const launch = { args: ['--no-sandbox'] };
+  const candidates = [process.env.CHROMIUM_PATH];
+  for (const root of ['/opt/pw-browsers', `${process.env.HOME || '/root'}/.cache/ms-playwright`]) {
+    for (const build of ['chromium', 'chromium-*']) {
+      candidates.push(`${root}/${build}/chrome-linux/chrome`);
+    }
   }
-  launch.args = ['--no-sandbox'];
+  candidates.push('/usr/bin/chromium', '/usr/bin/chromium-browser', '/usr/bin/google-chrome');
+
+  for (const c of candidates) {
+    if (!c) continue;
+    if (c.includes('*')) {                        // expand a single glob segment
+      const [base, rest] = c.split('*');
+      const dir = dirname(base);
+      let entries = [];
+      try { entries = (await import('fs')).readdirSync(dir); } catch { continue; }
+      const prefix = base.slice(dir.length + 1);
+      const hit = entries.filter(e => e.startsWith(prefix))
+        .map(e => `${dir}/${e}${rest}`).find(existsSync);
+      if (hit) { launch.executablePath = hit; break; }
+    } else if (existsSync(c)) { launch.executablePath = c; break; }
+  }
 
   let browser;
   try { browser = await chromium.launch(launch); }
@@ -231,24 +251,48 @@ async function runtime() {
      would mean flagging every correctly-built page. Translations are compared
      in pixels, scales and opacity as ratios, so use a threshold below which
      nothing is visible either way. */
-  const same = (a, b) => {
-    if (!a || !b) return false;
-    if (a.length !== b.length) return false;
-    return a.every((v, i) => Math.abs(v - b[i]) < 0.05);
+  /* A transform matrix mixes units: scale and skew are ratios around 1, but
+     translations are pixels, and the last entry here is opacity. Comparing
+     them all against one number means a threshold sensible for scale is
+     absurdly tight for pixels — a 0.15px translation difference is invisible
+     on any display yet fails a 0.05 test. Judge each component in its own
+     unit, scaled by `k` so the same function can ask a strict question
+     (has it stopped moving) and a lenient one (do these look the same). */
+  const near = (a, b, k) => {
+    if (!a || !b || a.length !== b.length) return false;
+    const n = a.length - 1;                       // last entry is opacity
+    const translations = n === 16 ? [12, 13, 14]  // matrix3d
+                       : n === 6  ? [4, 5]        // 2D matrix
+                       : [];
+    return a.every((v, i) => {
+      const tol = i === n ? 0.04 * k                       // opacity, a ratio
+                : translations.includes(i) ? 1.0 * k       // pixels
+                : 0.02 * k;                                // scale / skew
+      return Math.abs(v - b[i]) < tol;
+    });
   };
+  /* Two different questions needing two different thresholds. "Do these two
+     renderings match?" wants a loose one, so imperceptible differences aren't
+     called defects. "Has it stopped moving?" wants a tight one — a slow
+     transition creeping a hair per sample clears a loose threshold and looks
+     settled while still drifting, which is exactly how an animation still in
+     flight gets misreported as impure state. */
+  const same   = (a, b) => near(a, b, 1);      // imperceptible = identical
+  const stable = (a, b) => near(a, b, 0.05);   // still drifting at all?
 
   const unsettled = new Set();
   const settle = async y => {
     await page.evaluate(v => window.scrollTo(0, v), y);
     let prev = await (await page.waitForTimeout(80), snapshot());
-    for (let i = 0; i < 8; i++) {                 // up to ~1.2s of settling
+    const ROUNDS = 14;                            // up to ~2.1s of settling
+    for (let i = 0; i < ROUNDS; i++) {
       await page.waitForTimeout(150);
       const next = await snapshot();
       const keys = new Set([...Object.keys(prev), ...Object.keys(next)]);
-      const moving = [...keys].filter(k => !same(prev[k], next[k]));
+      const moving = [...keys].filter(k => !stable(prev[k], next[k]));
       prev = next;
       if (!moving.length) return next;
-      if (i === 7) moving.forEach(k => unsettled.add(k));  // never came to rest
+      if (i === ROUNDS - 1) moving.forEach(k => unsettled.add(k));
     }
     return prev;
   };
@@ -275,6 +319,43 @@ async function runtime() {
     `(e.g. ${differing.find(d => d.length).slice(0, 2).map(k => `el#${k}`).join(', ')}) — ` +
     `state is carried between frames rather than derived from progress`);
   else add(OK, 'purity-runtime', 'identical rendering scrolling up and down');
+
+  /* Chapters in a pinned scene are absolutely positioned on top of each other
+     by necessity, so a mistake in one beat's offsets shows up as text sitting
+     on text — invisible in source, obvious on screen. Only fully-opaque text
+     counts: mid-dissolve both beats are legitimately present at ~50%. */
+  const collisions = [];
+  for (const y of stops) {
+    await page.evaluate(v => window.scrollTo(0, v), y);
+    await page.waitForTimeout(400);
+    const n = await page.evaluate(() => {
+      const solid = [...document.querySelectorAll('body *')].filter(el => {
+        if (!el.textContent.trim() || el.children.length) return false;
+        const s = getComputedStyle(el);
+        if (s.visibility === 'hidden' || s.display === 'none') return false;
+        let node = el, eff = 1;              // opacity multiplies down the tree
+        while (node && node !== document.body) {
+          eff *= parseFloat(getComputedStyle(node).opacity); node = node.parentElement;
+        }
+        if (eff < 0.85) return false;
+        const r = el.getBoundingClientRect();
+        return r.width > 0 && r.height > 0 && r.top < innerHeight && r.bottom > 0;
+      });
+      let hits = 0;
+      for (let i = 0; i < solid.length; i++)
+        for (let j = i + 1; j < solid.length; j++) {
+          const a = solid[i].getBoundingClientRect(), b = solid[j].getBoundingClientRect();
+          if (Math.min(a.right, b.right) - Math.max(a.left, b.left) > 4 &&
+              Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 4) hits++;
+        }
+      return hits;
+    });
+    collisions.push(n);
+  }
+  const worstCollide = Math.max(...collisions);
+  if (worstCollide) add(WARN, 'text-collision',
+    `${worstCollide} pair(s) of fully-opaque text overlap at rest — beats are landing on top of each other`);
+  else add(OK, 'text-collision', 'no overlapping text at any sampled position');
 
   if (unsettled.size) add(WARN, 'settling',
     `${unsettled.size} element(s) never come to rest with scroll held still — usually a CSS ` +

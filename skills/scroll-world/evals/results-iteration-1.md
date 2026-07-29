@@ -10,8 +10,8 @@ Graded with `scripts/audit.mjs`, which drives a real headless Chromium.
 | | with skill | baseline |
 |---|---|---|
 | errors | 0 | 0 |
-| warnings | **0** | **5** |
-| checks passing | 13/13 | 8/13 |
+| warnings | **1** | **5** |
+| checks passing | 13/14 | 9/14 |
 
 Both produced a working, good-looking page with a real pinned section, and both
 had all four narrative beats (origin, harvest, roast, cup) present as text in
@@ -55,6 +55,51 @@ exact strings, so it flagged sub-pixel differences (0.0009 in `scaleX`) caused
 by the engine's own write-skip epsilon, and it read in-flight CSS transitions as
 accumulated state. It now settles before sampling and compares numerically with
 a tolerance.
+
+## What both agents got wrong, and what it changed
+
+Neither agent rendered its page. The with-skill one reported "no browser is
+installed"; the baseline reported "the proxy blocks Playwright downloads" and
+built an elaborate Node canvas-recording harness instead. Both were wrong — a
+prebuilt Chromium was sitting in `/opt/pw-browsers` the whole time.
+
+It cost them. The with-skill page has **text landing on text** at rest, right
+through the middle of the pinned section: a beat-number label overlapping the
+chapter rail. It passes every static check, is invisible in source, and is
+obvious in a screenshot. So:
+
+- `audit.mjs` gained a `text-collision` check, counting only fully-opaque text
+  so a legitimate cross-dissolve (both beats near 50%) isn't flagged.
+- `audit.mjs` now finds a browser properly — `CHROMIUM_PATH`, then the usual
+  prebuilt locations, then Playwright's own.
+- SKILL.md now says plainly that "Playwright not available" usually means *not
+  found*, not *not installed*, with the commands to go looking — and that a
+  pinned layout stacks its beats, so text-on-text is the failure you cannot
+  catch without rendering.
+
+The baseline agent also "fixed" `overflow-x: hidden` on `body`, calling it "the
+classic way to silently break `position: sticky`", switching it to `clip`. That
+is the exact folklore measured false above — the change was harmless but the
+reasoning was wrong, which is good evidence the corrected table earns its place
+in `troubleshooting.md`.
+
+## Three false alarms fixed in audit.mjs
+
+Worth recording, because each would have made the tool untrustworthy:
+
+1. **Exact string comparison of computed styles.** Flagged a 0.0009 difference
+   in `scaleX` caused by the engine's own write-skip epsilon.
+2. **Sampling mid-transition.** Read in-flight CSS transitions as accumulated
+   state. It now waits for rendering to come to rest and reports elements that
+   never settle as their own, gentler finding.
+3. **One tolerance for every matrix component.** A transform matrix mixes scale
+   ratios (~1.0) with pixel translations, so a threshold sensible for scale
+   rejected a **0.15px** translation difference as a defect. Each component is
+   now judged in its own unit.
+
+The lesson generalises past this script: a checker that cries wolf on correct
+work is worse than no checker, because the first thing anyone does with it is
+stop believing it.
 
 ## Regression suite
 
