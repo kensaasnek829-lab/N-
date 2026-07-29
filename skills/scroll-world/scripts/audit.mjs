@@ -210,33 +210,75 @@ async function runtime() {
   const vp = 800;
 
   /* Purity: the picture at a given offset must not depend on how you got
-     there. Sample scrolling down, then again scrolling up, and compare. */
-  const sample = async y => {
-    await page.evaluate(v => window.scrollTo(0, v), y);
-    await page.waitForTimeout(90);
-    return page.evaluate(() => {
-      const out = [];
-      for (const el of document.querySelectorAll('body *')) {
-        const s = getComputedStyle(el);
-        if (s.transform !== 'none' || parseFloat(s.opacity) < 1)
-          out.push(s.transform + '|' + s.opacity);
-      }
-      return out.join(';');
+     there. Sample scrolling down, then again scrolling up, and compare.
+
+     Scroll has to be held still until rendering settles first, or this
+     measures in-flight CSS transitions rather than page state — a different
+     problem with a different fix, and worth naming separately. */
+  const snapshot = () => page.evaluate(() => {
+    const out = {};
+    document.querySelectorAll('body *').forEach((el, i) => {
+      const s = getComputedStyle(el);
+      if (s.transform !== 'none' || parseFloat(s.opacity) < 1)
+        out[i] = [...(s.transform.match(/-?[\d.]+/g) || []).map(Number), parseFloat(s.opacity)];
     });
+    return out;
+  });
+
+  /* Compare numerically with a tolerance rather than by string. Engines that
+     skip imperceptible writes (this one skips deltas under 0.0005) can land a
+     hair apart depending on approach direction; flagging that as a defect
+     would mean flagging every correctly-built page. Translations are compared
+     in pixels, scales and opacity as ratios, so use a threshold below which
+     nothing is visible either way. */
+  const same = (a, b) => {
+    if (!a || !b) return false;
+    if (a.length !== b.length) return false;
+    return a.every((v, i) => Math.abs(v - b[i]) < 0.05);
+  };
+
+  const unsettled = new Set();
+  const settle = async y => {
+    await page.evaluate(v => window.scrollTo(0, v), y);
+    let prev = await (await page.waitForTimeout(80), snapshot());
+    for (let i = 0; i < 8; i++) {                 // up to ~1.2s of settling
+      await page.waitForTimeout(150);
+      const next = await snapshot();
+      const keys = new Set([...Object.keys(prev), ...Object.keys(next)]);
+      const moving = [...keys].filter(k => !same(prev[k], next[k]));
+      prev = next;
+      if (!moving.length) return next;
+      if (i === 7) moving.forEach(k => unsettled.add(k));  // never came to rest
+    }
+    return prev;
   };
 
   const stops = [0.25, 0.5, 0.75].map(f => Math.round((height - vp) * f));
   const down = [];
-  for (const y of stops) down.push(await sample(y));
+  for (const y of stops) down.push(await settle(y));
   await page.evaluate(v => window.scrollTo(0, v), height);
-  await page.waitForTimeout(120);
+  await page.waitForTimeout(200);
   const up = [];
-  for (const y of [...stops].reverse()) up.unshift(await sample(y));
+  for (const y of [...stops].reverse()) up.unshift(await settle(y));
 
-  const mismatch = stops.filter((_, i) => down[i] !== up[i]).length;
+  /* Elements still moving while scroll is held aren't scroll-derived at all
+     (a looping keyframe animation, or a transition that never lands), so
+     excluding them keeps the purity verdict about what it claims to be. */
+  const differing = stops.map((_, i) => {
+    const keys = new Set([...Object.keys(down[i]), ...Object.keys(up[i])]);
+    return [...keys].filter(k => !unsettled.has(k) && !same(down[i][k], up[i][k]));
+  });
+  const mismatch = differing.filter(d => d.length).length;
+
   if (mismatch) add(ERROR, 'purity-runtime',
-    `${mismatch}/${stops.length} scroll positions render differently going up vs down — state is accumulating`);
+    `${mismatch}/${stops.length} scroll positions settle differently depending on scroll direction ` +
+    `(e.g. ${differing.find(d => d.length).slice(0, 2).map(k => `el#${k}`).join(', ')}) — ` +
+    `state is carried between frames rather than derived from progress`);
   else add(OK, 'purity-runtime', 'identical rendering scrolling up and down');
+
+  if (unsettled.size) add(WARN, 'settling',
+    `${unsettled.size} element(s) never come to rest with scroll held still — usually a CSS ` +
+    `transition on a scroll-driven property, which makes rendering lag the scrollbar`);
 
   /* Reduced motion must leave prose readable rather than at opacity 0. */
   const rctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, reducedMotion: 'reduce' });

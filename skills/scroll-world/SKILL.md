@@ -183,6 +183,17 @@ fine on one hero element, not on twelve. Use `will-change` on the handful of
 elements actually animating and remove it when they stop; blanketing the page
 in it exhausts GPU memory and makes things slower.
 
+**Don't put a CSS `transition` on a property you're driving from scroll.** It's
+a natural instinct — the motion looks steppy, so you reach for `transition:
+transform .3s` to smooth it. But scroll already supplies the smoothness at the
+frame rate of the scroll itself, and the transition adds a second, competing
+animation on top. The result lags the scrollbar, keeps moving after the reader
+stops, and lands somewhere that depends on how fast they got there — which
+breaks the purity the whole architecture rests on. If a scene looks steppy, the
+progress values are arriving too coarsely; smooth the input with an `ease`, not
+the output with a transition. Transitions are fine for things scroll *isn't*
+driving, like a hover state or a menu opening.
+
 **Never hijack the scroll.** Not `preventDefault` on wheel, not remapping one
 notch to one section. It breaks trackpad momentum, keyboard paging, find-in-page
 and screen readers, and it's the reason people bounce off pages like this.
